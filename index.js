@@ -5,7 +5,10 @@ const jwt = require('jsonwebtoken')
 const { MongoClient, ServerApiVersion ,ObjectId} = require('mongodb');
 const port = process.env.PORT || 5000
 require('dotenv').config()
-app.use(cors())
+app.use(cors({
+  credentials:true,
+  origin:['http://localhost:5173']
+}))
 app.use(express.json())
 
 // configuring mongodb connection:
@@ -27,9 +30,15 @@ async function run() {
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const categoryCollection= client.db('librarymanagementDB').collection('categoryCollection')
+    const bookCollection = client.db('librarymanagementDB').collection('bookCollection')
 
     app.get('/categories',async(req,res)=>{
       const cursor =  categoryCollection.find({})
+      const result = await cursor.toArray()
+      res.send(result) 
+    })
+    app.get('/allBooks',async(req,res)=>{
+      const cursor =  bookCollection.find({})
       const result = await cursor.toArray()
       res.send(result) 
     })
