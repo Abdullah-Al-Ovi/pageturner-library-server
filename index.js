@@ -62,7 +62,23 @@ async function run() {
       const bookInfo = req.body
       const result = await bookCollection.insertOne(bookInfo)
       res.send(result)
-
+    })
+    app.put('/update/:id',async(req,res)=>{
+      const id = req.params.id
+      const {name,author_name,category,image,rating} = req.body
+      const option = {upsert:true}
+      const updatedBook ={
+        $set:{
+          name:name,
+          author_name:author_name,
+          category:category,
+          image:image,
+          rating:rating
+        }
+      }
+      const result = await bookCollection.updateOne({_id:new ObjectId(id)},updatedBook,option)
+      res.send(result)
+      
     })
     
   } 
