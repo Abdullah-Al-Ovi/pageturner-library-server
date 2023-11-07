@@ -7,7 +7,8 @@ const port = process.env.PORT || 5000
 require('dotenv').config()
 app.use(cors({
   credentials:true,
-  origin:['http://localhost:5173']
+  origin:['http://localhost:5173','https://pageturnerlibrary.surge.sh'],
+  // methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
 }))
 app.use(express.json())
 
@@ -59,6 +60,12 @@ async function run() {
       const result = await bookCollection.findOne({_id: new ObjectId(id)})
       res.send(result)
     })
+    app.get('/borrowedBooks/:email',async(req,res)=>{
+      const email = req.params.email 
+      const cursor = borrowedBookCollection.find({userEmail:email})
+      const result = await cursor?.toArray()
+      res.send(result)
+    })
     app.post('/addBook',async(req,res)=>{
       const bookInfo = req.body
       const result = await bookCollection.insertOne(bookInfo)
@@ -108,6 +115,11 @@ async function run() {
       }
       const result = await bookCollection.updateOne(filter,update)
       res.send(result)
+    })
+    app.delete('/returnBook/:id',async(req,res)=>{
+        const id = req.params.id 
+        const result =await borrowedBookCollection.deleteOne({_id:new ObjectId(id)})
+        res.send(result)
     })
     
   } 
