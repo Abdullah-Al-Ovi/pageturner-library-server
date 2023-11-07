@@ -31,6 +31,7 @@ async function run() {
 
     const categoryCollection= client.db('librarymanagementDB').collection('categoryCollection')
     const bookCollection = client.db('librarymanagementDB').collection('bookCollection')
+    const borrowedBookCollection = client.db('librarymanagementDB').collection('borrowedBookCollection')
 
     app.get('/categories',async(req,res)=>{
       const cursor =  categoryCollection.find({})
@@ -63,6 +64,21 @@ async function run() {
       const result = await bookCollection.insertOne(bookInfo)
       res.send(result)
     })
+    app.post('/addToBorrowed',async(req,res)=>{
+      const borrowInfo = req.body
+      const findExisting = await borrowedBookCollection.findOne({
+        userEmail : borrowInfo.userEmail,
+        bookName : borrowInfo.bookName
+      })
+      if(findExisting){
+        return res.status(400).send({message:'This book is already borrowed by you'})
+      }
+      else{
+        const result = await borrowedBookCollection.insertOne(borrowInfo)
+        res.send(result) 
+      }
+      
+    })
     app.put('/update/:id',async(req,res)=>{
       const id = req.params.id
       const {name,author_name,category,image,rating} = req.body
@@ -78,7 +94,20 @@ async function run() {
       }
       const result = await bookCollection.updateOne({_id:new ObjectId(id)},updatedBook,option)
       res.send(result)
-      
+    })
+
+    app.patch('/updateQuantity/:id',async(req,res)=>{
+      const id = req.params.id 
+      const {quantity} = req.body
+      const filter = {_id:new ObjectId(id)}
+      const updatedQuantity = quantity === null ? 0 : quantity
+      const update = {
+        $set:{
+          quantity: updatedQuantity
+        }
+      }
+      const result = await bookCollection.updateOne(filter,update)
+      res.send(result)
     })
     
   } 
