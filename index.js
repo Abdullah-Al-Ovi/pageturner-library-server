@@ -42,6 +42,11 @@ async function run() {
       const result = await cursor.toArray()
       res.send(result) 
     })
+    app.get('/filteredBooks',async(req,res)=>{
+      const cursor = bookCollection.find({quantity:{$ne:0}})
+      const result = await cursor.toArray()
+      res.send(result)
+    })
     app.get('/category/:cat',async(req,res)=>{
       const cat = req.params.cat
       const cursor = bookCollection.find({category : cat})
