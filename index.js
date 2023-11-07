@@ -48,6 +48,17 @@ async function run() {
       const result = await cursor.toArray()
       res.send(result)
     })
+    app.get('/book/:id',async(req,res)=>{
+      const id = req?.params?.id
+      const result = await bookCollection.findOne({_id: new ObjectId(id)})
+      res.send(result)
+    })
+    app.post('/addBook',async(req,res)=>{
+      const bookInfo = req.body
+      const result = await bookCollection.insertOne(bookInfo)
+      res.send(result)
+
+    })
     
   } 
   
