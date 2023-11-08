@@ -1,7 +1,9 @@
 const express = require('express')
 const app = express()
 const cors = require('cors')
+const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken')
+
 const { MongoClient, ServerApiVersion ,ObjectId} = require('mongodb');
 const port = process.env.PORT || 5000
 require('dotenv').config()
@@ -11,6 +13,23 @@ app.use(cors({
   // methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
 }))
 app.use(express.json())
+app.use(cookieParser());
+
+const verifyingToken = (req,res,next)=>{
+  const token = req.cookies.token
+  console.log(token);
+  console.log(process.env.ACCESS_TOKEN);
+  if(!token){
+   return res.status(401).send({message:'User unauthorized'})
+  }
+  jwt.verify(token,process.env.ACCESS_TOKEN,(err,decoded)=>{
+    if(err){
+      return res.status(401).send({message:'User unauthorized'})
+    }
+    req.user = decoded 
+    next()
+  })
+}
 
 // configuring mongodb connection:
 
@@ -26,8 +45,8 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
-    await client.db("admin").command({ ping: 1 });
+    // await client.connect();
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
     const categoryCollection= client.db('librarymanagementDB').collection('categoryCollection')
@@ -61,12 +80,22 @@ async function run() {
       res.send(result)
     })
     app.get('/borrowedBooks/:email',async(req,res)=>{
+      console.log(req.user);
+
       const email = req.params.email 
+      // if(email !== req?.user.email){
+      //   return res.status(403).send({message:'Access denied'})
+      // }
       const cursor = borrowedBookCollection.find({userEmail:email})
       const result = await cursor?.toArray()
       res.send(result)
     })
-    app.post('/addBook',async(req,res)=>{
+    app.get('/increaseQuantity/:bookName',async(req,res)=>{
+      const bookName = req.params.bookName
+      const result = await bookCollection.findOne({name:bookName })
+      res.send(result)
+    })
+    app.post('/addBook',verifyingToken,async(req,res)=>{
       const bookInfo = req.body
       const result = await bookCollection.insertOne(bookInfo)
       res.send(result)
@@ -86,7 +115,28 @@ async function run() {
       }
       
     })
-    app.put('/update/:id',async(req,res)=>{
+
+    app.post('/jwt',async(req,res)=>{
+      const user = req.body 
+      const token = jwt.sign(user,process.env.ACCESS_TOKEN,{
+        expiresIn: '1m'
+      })
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production', 
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
+
+    }).send({success:true})
+    })
+
+    app.post('/logOut',(req,res)=>{
+      const loggesUser = req.body
+      console.log(loggesUser);
+      res.clearCookie('token', { maxAge: 0, secure: true, sameSite:'none' });
+      res.send({success:true})
+    })
+
+    app.put('/update/:id',verifyingToken,async(req,res)=>{
       const id = req.params.id
       const {name,author_name,category,image,rating} = req.body
       const option = {upsert:true}
@@ -105,12 +155,16 @@ async function run() {
 
     app.patch('/updateQuantity/:id',async(req,res)=>{
       const id = req.params.id 
-      const {quantity} = req.body
+      let {quantity} = req.body
+      console.log(quantity,id);
       const filter = {_id:new ObjectId(id)}
-      const updatedQuantity = quantity === null ? 0 : quantity
+      // const updatedQuantity = quantity === null ? 0 : quantity
+      if (quantity === null) {
+        quantity = 0;
+      }
       const update = {
         $set:{
-          quantity: updatedQuantity
+          quantity: quantity
         }
       }
       const result = await bookCollection.updateOne(filter,update)
