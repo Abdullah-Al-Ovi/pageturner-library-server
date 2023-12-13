@@ -1,6 +1,7 @@
 const express = require('express')
 const app = express()
 const cors = require('cors')
+const nodemailer = require('nodemailer');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken')
 
@@ -52,13 +53,19 @@ async function run() {
     const categoryCollection= client.db('librarymanagementDB').collection('categoryCollection')
     const bookCollection = client.db('librarymanagementDB').collection('bookCollection')
     const borrowedBookCollection = client.db('librarymanagementDB').collection('borrowedBookCollection')
+    const userCollection = client.db('librarymanagementDB').collection('userCollection')
 
+    app.get('/users',async(req,res)=>{
+      const cursor =  userCollection.find({})
+      const result = await cursor.toArray()
+      res.send(result) 
+    }) 
     app.get('/categories',async(req,res)=>{
       const cursor =  categoryCollection.find({})
       const result = await cursor.toArray()
       res.send(result) 
     })
-    app.get('/allBooks',async(req,res)=>{
+    app.get('/allBooks',verifyingToken,async(req,res)=>{
       const cursor =  bookCollection.find({})
       const result = await cursor.toArray()
       res.send(result) 
@@ -95,6 +102,43 @@ async function run() {
       const result = await bookCollection.findOne({name:bookName })
       res.send(result)
     })
+
+    app.post('/send-email',  (req, res) => {
+      const { to, subject, text } = req.body;
+      console.log(to, subject, text);
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.NODEMAILER_USER,
+          pass: process.env.NODEMAILER_PASS,
+        },
+      });
+      const mailOptions = {
+        from: process.env.NODEMAILER_USER,
+        to: to,
+        subject: subject,
+        text: text,
+      };
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.log(error);
+          return res.status(500).send(error.toString());
+        }
+        res.status(200).send(info.response);
+      });
+    });
+
+    app.post('/users', async (req, res) => {
+      const userInfo = req.body
+      const existUser = await userCollection.findOne({ email: userInfo.email })
+      if (existUser) {
+        return res.send({ message: 'user already exist', insertedId: null })
+      }
+      const result = await userCollection.insertOne(userInfo)
+      res.send(result)
+    })
     app.post('/addBook',verifyingToken,async(req,res)=>{
       const bookInfo = req.body
       const result = await bookCollection.insertOne(bookInfo)
@@ -106,12 +150,13 @@ async function run() {
         userEmail : borrowInfo.userEmail,
         bookName : borrowInfo.bookName
       })
-      if(findExisting){
-        return res.status(400).send({message:'This book is already borrowed by you'})
+      const borrowedBookCount = await borrowedBookCollection.find({userEmail : borrowInfo.userEmail}).toArray()
+      if(!findExisting && borrowedBookCount?.length <5){
+        const result = await borrowedBookCollection.insertOne(borrowInfo)
+        res.send(result)
       }
       else{
-        const result = await borrowedBookCollection.insertOne(borrowInfo)
-        res.send(result) 
+        return res.send({message:'This book is already borrowed by you'})
       }
       
     })
@@ -119,7 +164,7 @@ async function run() {
     app.post('/jwt',async(req,res)=>{
       const user = req.body 
       const token = jwt.sign(user,process.env.ACCESS_TOKEN,{
-        expiresIn: '1m'
+        expiresIn: '1h'
       })
       res.cookie('token', token, {
         httpOnly: true,
